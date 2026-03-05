@@ -1,0 +1,37 @@
+Walkthrough - 2FA & Security Upgrade
+I have implemented Two-Factor Authentication (TOTP) and secure password hashing (bcrypt) for your Timesheet application.
+
+🔐 Security Enhancements
+1. Two-Factor Authentication (TOTP)
+Users now have an extra layer of security compatible with Google Authenticator, Authy, or any TOTP-compliant app.
+
+Setup Phase: On the first login after this update, users will be presented with a QR Code. Scanning this adds the account to their mobile authenticator app.
+Verification Phase: Subsequent logins will require a 6-digit Time-based One-Time Password (OTP) after entering the correct username and password.
+2. Secure Password Hashing
+Bcrypt Hashing: Passwords are no longer stored in plain text. They are hashed using the industry-standard bcrypt algorithm.
+Auto-Upgrade: For a seamless transition, existing plain-text passwords will be automatically upgraded to secure hashes the first time a user logs in successfully.
+🛠️ Components Updated
+database.py
+: Added new columns (
+totp_secret
+, is_2fa_enabled) and support functions.
+auth.py
+: Added bcrypt and TOTP logic using pyotp and qrcode.
+app.py
+: Revised the login interface for a multi-stage flow.
+requirements.txt
+: Added pyotp, qrcode, bcrypt, and pillow.
+🚀 How to Test
+Restart the App: Ensure dependencies are installed (pip install -r requirements.txt).
+Login: Use your existing credentials (e.g., "System Administrator" / "12345678").
+Setup 2FA:
+Scan the QR code shown on the screen.
+Enter the 6-digit code from your phone.
+Click "Verify & Enable 2FA".
+Confirm: Log out and log back in. You should now be asked for an OTP immediately after entering your password.
+📄 Database Migration
+If you need to manually apply the schema changes to your PostgreSQL database, use the provided 
+migration_2fa.sql
+. Note that 
+app.py
+ tries to do this automatically on startup.
