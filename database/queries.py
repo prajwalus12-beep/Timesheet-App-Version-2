@@ -22,7 +22,7 @@ def get_all_projects():
     supabase = get_supabase_client()
     if not supabase: return pd.DataFrame(columns=['project_code', 'project_name', 'status'])
     
-    res = supabase.table('project').select('project_code, project_name, status').order('project_code').execute()
+    res = supabase.table('project').select('project_code, project_name, status').order('project_code', desc=True).execute()
     data = res.data or []
     
     # Decrypt project names
@@ -273,7 +273,7 @@ def check_assignment(emp_id, project_code):
     return len(res.data) > 0
 
 def import_projects(df):
-    """Import projects using Supabase SDK."""
+    """Import projects using Supabase SDK. Updates existing projects by Job No."""
     supabase = get_supabase_client()
     if not supabase: return False, "Configuration error"
     
@@ -281,17 +281,28 @@ def import_projects(df):
     df = df.where(pd.notnull(df), None)
     
     try:
+        # Fetch existing project codes to determine new vs updated
+        existing_res = supabase.table('project').select('project_code').execute()
+        existing_codes = {r['project_code'] for r in (existing_res.data or [])}
+        
         data = []
+        updated_count = 0
+        new_count = 0
         for _, row in df.iterrows():
+            code = str(row.get('Job No', ''))
             data.append({
-                "project_code": str(row.get('Job No', '')),
+                "project_code": code,
                 "project_name": encrypt_data(row.get('Project', '')),
                 "status": row.get('Status', 'In progress')
             })
+            if code in existing_codes:
+                updated_count += 1
+            else:
+                new_count += 1
         
         if data:
-            supabase.table('project').upsert(data).execute()
-        return True, f"Successfully imported {len(df)} projects."
+            supabase.table('project').upsert(data, on_conflict='project_code').execute()
+        return True, f"Successfully imported {len(df)} projects ({new_count} new, {updated_count} updated)."
     except Exception as e:
         return False, str(e)
 
@@ -320,7 +331,7 @@ def import_employees(df):
                 "slack_id": slack_id
             })
             
-            username = emp_name.lower().replace(" ", ".")
+            username = " ".join(emp_name.strip().lower().split())
             enc_pwd = encrypt_data(FIXED_PASSWORD)
             user_data.append({
                 "employee_id": emp_id,

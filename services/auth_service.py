@@ -1,6 +1,7 @@
 import streamlit as st
 import bcrypt
 import re
+import json
 import secrets
 import string
 from cryptography.fernet import Fernet
@@ -11,10 +12,19 @@ FIXED_PASSWORD = "NyT@i9Us!Q7kLm2Z"
 def get_fernet():
     """Returns a Fernet instance using the key from secrets."""
     try:
-        key = st.secrets["postgres"]["encryption_key"].encode()
-        return Fernet(key)
+        postgres_secrets = st.secrets.get("postgres", {})
+        key = postgres_secrets.get("encryption_key")
+        if not key:
+            st.error("""
+            **Encryption key missing!**
+            
+            This key is required for security. Please add it to your **Streamlit Cloud Dashboard** 
+            under the `[postgres]` section in **Secrets**.
+            """)
+            return None
+        return Fernet(key.encode())
     except Exception as e:
-        st.error(f"Encryption error: Missing or invalid encryption key. {e}")
+        st.error(f"Encryption error: {e}")
         return None
 
 def encrypt_data(text):
@@ -77,29 +87,76 @@ def login_user(username, password):
     user_record = get_user_by_username(username)
     if user_record:
         uid, emp_id, uname, db_pw, failed, locked_until = user_record
-        if locked_until and datetime.now() < locked_until:
-            wait = int((locked_until - datetime.now()).total_seconds() / 60) + 1
-            return {"error": f"Account locked. Try in {wait} min."}
+        
+        # Convert string timestamp to datetime object if needed
+        if isinstance(locked_until, str):
+            try:
+                # Handle potential formats: '2026-03-11 04:11:08.018048' or ISO format
+                if ' ' in locked_until:
+                    locked_until = datetime.strptime(locked_until.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                else:
+                    locked_until = datetime.fromisoformat(locked_until)
+            except:
+                locked_until = None
+
+        if locked_until and datetime.utcnow() < locked_until:
+            wait = int((locked_until - datetime.utcnow()).total_seconds() / 60) + 1
+            return {"error": f"⚠️ Account locked for security. Please try again in {wait} min."}
         
         if verify_password(password, db_pw):
             if failed > 0: update_user_lockout(username, 0, None)
-            # Removed automatic re-hashing to preserve admin visibility
             return {"id": uid, "employee_id": emp_id, "username": uname, 
                     "role": "admin" if uname in ["admin", "System Administrator"] else "employee"}
         else:
             new_failed = failed + 1
-            lockout = datetime.now() + timedelta(minutes=15) if new_failed >= 5 else None
+            lockout = datetime.utcnow() + timedelta(minutes=15) if new_failed >= 5 else None
             update_user_lockout(username, new_failed, lockout)
-            if lockout: return {"error": "Too many failed attempts. Locked for 15 min."}
-            return {"error": f"Invalid password. Attempt {new_failed}/5."}
-    return {"error": "User not found."}
+            if lockout: return {"error": "🚫 Too many failed attempts. Your account is locked for 15 minutes."}
+            return {"error": f"❌ Invalid password. Attempt {new_failed}/5."}
+    return {"error": "🔍 User not found."}
+
+def create_session_token(user_data):
+    """Create an encrypted session token from user data."""
+    try:
+        f = get_fernet()
+        if f:
+            payload = json.dumps(user_data)
+            return f.encrypt(payload.encode()).decode()
+    except:
+        pass
+    return None
+
+def restore_session_from_token(token):
+    """Decrypt a session token and return user data."""
+    try:
+        f = get_fernet()
+        if f:
+            payload = f.decrypt(token.encode()).decode()
+            return json.loads(payload)
+    except:
+        pass
+    return None
 
 def logout_user():
     for key in list(st.session_state.keys()): del st.session_state[key]
+    st.query_params.clear()
     st.rerun()
 
 def check_login():
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
         st.session_state["user"] = None
+
+    # Restore session from token on refresh
+    if not st.session_state["user"]:
+        token = st.query_params.get("session")
+        if token:
+            user_data = restore_session_from_token(token)
+            if user_data:
+                st.session_state["logged_in"] = True
+                st.session_state["user"] = user_data
+            else:
+                # Invalid/expired token — clear it
+                st.query_params.clear()
+
     return st.session_state["user"]

@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 def generate_captcha_image(code: str) -> io.BytesIO:
     """Generate a CAPTCHA image for the given code and return as PNG BytesIO."""
-    width, height = 220, 80
+    width, height = 300, 100
 
     # --- Background ---
     bg_color = (
@@ -22,19 +22,32 @@ def generate_captcha_image(code: str) -> io.BytesIO:
     draw = ImageDraw.Draw(img)
 
     # --- Use a built-in font at a reasonable size ---
-    try:
-        font = ImageFont.truetype("arial.ttf", 38)
-    except OSError:
+    # Try multiple font paths to work on both Windows and Linux (Streamlit Cloud)
+    font = None
+    font_paths = [
+        "arial.ttf",                                          # Windows (by name)
+        "C:/Windows/Fonts/arial.ttf",                         # Windows (full path)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux (Debian/Ubuntu)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",       # Linux (Debian/Ubuntu)
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",              # Linux (Arch)
+        "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf", # Linux (Fedora)
+        "DejaVuSans-Bold.ttf",                                   # By name fallback
+    ]
+    for path in font_paths:
         try:
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", 38)
-        except OSError:
-            font = ImageFont.load_default()
+            font = ImageFont.truetype(path, 55)
+            break
+        except (OSError, IOError):
+            continue
+    if font is None:
+        # Last resort: use default font (will be small but functional)
+        font = ImageFont.load_default()
 
     # --- Draw each character with slight rotation & jitter ---
     char_width = width // (len(code) + 1)
     for i, ch in enumerate(code):
         # Create a small transparent image for the character
-        ch_img = Image.new("RGBA", (50, 60), (255, 255, 255, 0))
+        ch_img = Image.new("RGBA", (70, 80), (255, 255, 255, 0))
         ch_draw = ImageDraw.Draw(ch_img)
 
         # Random color per character (dark shades for readability)
@@ -46,12 +59,12 @@ def generate_captcha_image(code: str) -> io.BytesIO:
         ch_draw.text((5, 5), ch, font=font, fill=color)
 
         # Rotate slightly
-        angle = random.randint(-25, 25)
+        angle = random.randint(-15, 15)  # Reduced rotation for better legibility
         ch_img = ch_img.rotate(angle, resample=Image.BICUBIC, expand=True)
 
         # Paste onto main image
-        x = 10 + i * char_width + random.randint(-3, 3)
-        y = random.randint(2, 15)
+        x = 15 + i * (char_width + 5) + random.randint(-3, 3)
+        y = random.randint(5, 20)
         img.paste(ch_img, (x, y), ch_img)
 
     # --- Noise: random lines ---

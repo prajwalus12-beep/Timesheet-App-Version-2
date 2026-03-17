@@ -2,7 +2,7 @@ import streamlit as st
 from contextlib import contextmanager
 
 # Load secrets
-DB_CONFIG = st.secrets["postgres"]
+DB_CONFIG = st.secrets.get("postgres", {})
 
 @st.cache_resource
 def get_supabase_client():
@@ -12,7 +12,15 @@ def get_supabase_client():
         url = DB_CONFIG.get("SUPABASE_URL")
         key = DB_CONFIG.get("SUPABASE_ANON_KEY")
         if not url or not key:
-            st.error("Supabase configuration missing (SUPABASE_URL or SUPABASE_ANON_KEY in secrets.toml).")
+            st.error("""
+            **Supabase configuration missing!**
+            
+            Since you (correctly) added `secrets.toml` to `.gitignore`, it is not on GitHub. 
+            You must manually add your secrets to the **Streamlit Cloud Dashboard**:
+            1. Go to your app settings on Streamlit Cloud.
+            2. Open the **Secrets** section.
+            3. Paste your `[postgres]` configuration there.
+            """)
             return None
         return create_client(url, key)
     except ImportError:

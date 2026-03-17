@@ -2,7 +2,7 @@ import streamlit as st
 import datetime
 import time
 from database.queries import get_all_projects, add_timesheet_entry, update_timesheet_entry, verify_user_password, update_user_password
-from services.auth_service import is_password_strong, hash_password
+from services.auth_service import is_password_strong, encrypt_data
 
 @st.dialog("Update Password")
 def update_password_dialog(username):
@@ -29,60 +29,153 @@ def update_password_dialog(username):
             st.error(msg)
             return
 
-        hashed = hash_password(new_pwd)
-        update_user_password(username, hashed)
+        encrypted = encrypt_data(new_pwd)
+        update_user_password(username, encrypted)
         st.success("Password updated successfully!")
         time.sleep(1.5)
         st.rerun()
 
-@st.dialog("Add New Entry - TEST")
+
+@st.dialog("Add New Entry")
 def entry_form_dialog(user, emp_options, current_emp_id):
-    filter_type = st.radio("Project Type", ["Incomplete", "Complete"], horizontal=True, key="entry_filter_type_modal")
+    # Detect if dialog was just opened (widgets are cleared when dialog is closed)
+    if "entry_filter_type_modal" not in st.session_state:
+        st.session_state._entry_proj_visible = 20
+        st.session_state.pop('_entry_selected_proj_key', None)
+        
+    def reset_visible():
+        st.session_state._entry_proj_visible = 20
+        st.session_state.pop('_entry_selected_proj_key', None)
+
+    filter_type = st.radio("Project Status", ["Inprogress", "Complete"], horizontal=True, key="entry_filter_type_modal", on_change=reset_visible)
     
-    with st.form("add_time_form"):
+    # Fetch and filter projects by status
+    all_projects_df = get_all_projects()
+    if filter_type == "Complete":
+        filtered_projs = all_projects_df[all_projects_df['status'] == 'Complete']
+    else:
+        filtered_projs = all_projects_df[all_projects_df['status'] != 'Complete']
+    
+    # Build project options dict from ALL filtered projects
+    all_proj_options = {f"{r['project_code']} - {r['project_name']}": (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
+    all_proj_keys = list(all_proj_options.keys())
+    # Sort descending by job number (project code), which is the prefix
+    all_proj_keys.sort(key=lambda x: x.split(" - ")[0], reverse=True)
+    
+    # Use a container instead of a form so interactive elements (like "Show More") run instantly
+    with st.container(border=True):
         user_option_key = next((k for k, v in emp_options.items() if v == current_emp_id), None)
         options = list(emp_options.keys())
         default_idx = options.index(user_option_key) if user_option_key in options else 0
         
-        entry_emp = st.selectbox("Employee", options, index=default_idx, key="entry_emp_modal")
+        entry_emp = st.selectbox("Employee", options, index=default_idx, disabled=True, key="entry_emp_modal")
+        
         today = datetime.date.today()
         end_of_week = today + datetime.timedelta(days=(6 - today.weekday()))
         col_d, col_h = st.columns(2)
         with col_d:
             entry_date = st.date_input("Date", datetime.date.today(), max_value=end_of_week, format="DD-MM-YYYY", key="entry_date_modal")
         with col_h:
-            entry_hours = st.number_input("Hours", min_value=0.0, max_value=24.0, step=1.0, key="entry_hours_modal")
+            entry_hours = st.number_input("Hours", min_value=0.0, max_value=24.0, value=4.0, step=1.0, key="entry_hours_modal")
         
-        all_projects_df = get_all_projects()
-        filtered_projs = all_projects_df[all_projects_df['status'] == 'Complete'] if filter_type == "Complete" else all_projects_df[all_projects_df['status'] != 'Complete']
+        # --- Custom Project Picker ---
+        st.markdown("**Project Selection**")
+        
+        search_query = st.text_input("🔍 Search Project (type to filter all)", key="entry_proj_search", placeholder="Type project name or code...")
+        
+        if search_query:
+            q = search_query.lower()
+            filtered_keys = [k for k in all_proj_keys if q in k.lower()]
+        else:
+            filtered_keys = all_proj_keys
             
-        form_proj_options = {f"{r['project_code']} - {r['project_name']}": (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
-        proj_keys = list(form_proj_options.keys())
-        entry_proj_key = st.selectbox("Project", ["None"] + proj_keys, key="entry_proj_modal")
+        total_records = len(filtered_keys)
+        
+        selected_key = st.session_state.get('_entry_selected_proj_key', 'None')
+        if selected_key != "None":
+            st.info(f"📋 **Selected Project:** {selected_key}")
+        else:
+            st.warning("⚠️ No project selected")
+            
+        display_keys = filtered_keys[:20]
+        
+        if total_records == 0:
+            st.caption("No projects found.")
+        else:
+            st.caption(f"Showing 1–{len(display_keys)} of {total_records} projects")
+            
+        def handle_entry_chk(k):
+            if st.session_state.get(f"entry_chk_{k}"):
+                st.session_state._entry_selected_proj_key = k
+            elif st.session_state.get('_entry_selected_proj_key') == k:
+                st.session_state._entry_selected_proj_key = "None"
+            
+        with st.container(border=True, height=250):
+            for k in display_keys:
+                is_selected = (k == selected_key)
+                is_disabled = (selected_key != 'None' and not is_selected)
+                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"entry_chk_{k}", on_change=handle_entry_chk, args=(k,))
+                
+        entry_proj_key = selected_key
+        # -----------------------------------------------
         
         entry_phase = st.selectbox("Phase", ["Analysis", "Design", "Development", "Testing", "Deployement"], key="entry_phase_modal")
-        submit_entry = st.form_submit_button("Submit Entry", type="primary")
+        
+        submit_entry = st.button("Submit Entry", type="primary")
         
         if submit_entry:
             if not entry_date or entry_date > end_of_week:
                 st.warning("Cannot submit entry for a future week date.")
-            elif entry_hours > 0 and entry_proj_key != "None":
-                proj_data = form_proj_options[entry_proj_key]
+            elif entry_hours <= 0:
+                st.warning("Please enter valid hours.")
+            elif entry_proj_key == "None":
+                st.error("⚠️ No project selected — pick one from the list above")
+            else:
+                proj_data = all_proj_options[entry_proj_key]
                 e_id = emp_options[entry_emp]
                 e_name = entry_emp.split(" (")[0] 
                 add_timesheet_entry(e_id, e_name, proj_data[0], proj_data[1], entry_date, entry_hours, entry_phase, proj_data[2])
+                st.session_state.pop('_entry_selected_proj_key', None)
                 st.success("Entry Added!")
                 st.rerun()
-            elif entry_proj_key == "None": st.warning("Please select a project.")
-            else: st.warning("Please enter valid hours.")
 
 @st.dialog("Edit Entry")
 def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
+    if "edit_filter_type_modal" not in st.session_state:
+        st.session_state._edit_proj_page = 0
+        current_proj_code = entry_data.get('project_code', '')
+        current_proj_name = entry_data.get('project_name', '')
+        if current_proj_code:
+            st.session_state._edit_selected_proj_key = f"{current_proj_code} - {current_proj_name}"
+        else:
+            st.session_state._edit_selected_proj_key = 'None'
+
+    def reset_edit_visible():
+        st.session_state._edit_proj_page = 0
+
     current_status = entry_data.get('project_status', '')
-    default_filter = "Complete" if current_status == "Complete" else "Incomplete"
-    filter_type = st.radio("Project Type", ["Incomplete", "Complete"], index=0 if default_filter == "Incomplete" else 1, horizontal=True, key="edit_filter_type_modal")
+    default_filter = "Complete" if current_status == "Complete" else "Inprogress"
+    filter_type = st.radio("Project Type", ["Inprogress", "Complete"], index=0 if default_filter == "Inprogress" else 1, horizontal=True, key="edit_filter_type_modal", on_change=reset_edit_visible)
     
-    with st.form("edit_time_form"):
+    # Fetch and filter projects
+    all_projects_df = get_all_projects()
+    filtered_projs = all_projects_df[all_projects_df['status'] == 'Complete'] if filter_type == "Complete" else all_projects_df[all_projects_df['status'] != 'Complete']
+    
+    all_proj_options = {f"{r['project_code']} - {r['project_name']}": (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
+    
+    selected_key = st.session_state.get('_edit_selected_proj_key', 'None')
+    if selected_key != 'None' and selected_key not in all_proj_options:
+        prev_proj_code = selected_key.split(' - ')[0]
+        current_proj_row = all_projects_df[all_projects_df['project_code'] == prev_proj_code]
+        if not current_proj_row.empty:
+            r = current_proj_row.iloc[0]
+            all_proj_options[selected_key] = (r['project_code'], r['project_name'], r.get('status', ''))
+            
+    all_proj_keys = list(all_proj_options.keys())
+    all_proj_keys.sort(key=lambda x: x.split(" - ")[0], reverse=True)
+    
+    # Convert form to container so pagination buttons work instantly
+    with st.container(border=True):
         current_emp_label = next((k for k, v in emp_options.items() if v == entry_data['emp_id']), None)
         options = list(emp_options.keys())
         default_idx = options.index(current_emp_label) if current_emp_label in options else 0
@@ -98,15 +191,45 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
         with col_h:
             entry_hours = st.number_input("Hours", min_value=0.0, max_value=24.0, step=1.0, value=float(entry_data['hours']), key="edit_hours_modal")
         
-        all_projects_df = get_all_projects()
-        filtered_projs = all_projects_df[all_projects_df['status'] == 'Complete'] if filter_type == "Complete" else all_projects_df[all_projects_df['status'] != 'Complete']
+        # --- Custom Project Picker ---
+        st.markdown("**Project Selection**")
+        
+        search_query = st.text_input("🔍 Search Project (type to filter all)", key="edit_proj_search", placeholder="Type project name or code...")
+        
+        if search_query:
+            q = search_query.lower()
+            filtered_keys = [k for k in all_proj_keys if q in k.lower()]
+        else:
+            filtered_keys = all_proj_keys
             
-        form_proj_options = {f"{r['project_code']} - {r['project_name']}": (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
-        proj_keys = list(form_proj_options.keys())
-        current_proj_code = entry_data.get('project_code', '')
-        default_proj_idx = next((i + 1 for i, pk in enumerate(proj_keys) if form_proj_options[pk][0] == current_proj_code), 0)
+        total_records = len(filtered_keys)
+            
+        if selected_key != "None":
+            st.info(f"📋 **Selected Project:** {selected_key}")
+        else:
+            st.warning("⚠️ No project selected")
+            
+        display_keys = filtered_keys[:20]
+        
+        if total_records == 0:
+            st.caption("No projects found.")
+        else:
+            st.caption(f"Showing 1–{len(display_keys)} of {total_records} projects")
+            
+        def handle_edit_chk(k):
+            if st.session_state.get(f"edit_chk_{k}"):
+                st.session_state._edit_selected_proj_key = k
+            elif st.session_state.get('_edit_selected_proj_key') == k:
+                st.session_state._edit_selected_proj_key = "None"
                 
-        entry_proj_key = st.selectbox("Project", ["None"] + proj_keys, index=default_proj_idx, key="edit_proj_modal")
+        with st.container(border=True, height=250):
+            for k in display_keys:
+                is_selected = (k == selected_key)
+                is_disabled = (selected_key != 'None' and not is_selected)
+                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"edit_chk_{k}", on_change=handle_edit_chk, args=(k,))
+                
+        entry_proj_key = selected_key
+        # -----------------------------------------------
         
         phase_options = ["Analysis", "Design", "Development", "Testing", "Deployement"]
         phase_map = {"Analysis": "1", "Design": "2", "Development": "3", "Testing": "4", "Deployement": "5"}
@@ -115,16 +238,20 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
         default_phase_idx = phase_options.index(current_phase_label) if current_phase_label in phase_options else 0
         entry_phase = st.selectbox("Phase", phase_options, index=default_phase_idx, key="edit_phase_modal")
 
-        submit_update = st.form_submit_button("Update Entry", type="primary")
+        submit_update = st.button("Update Entry", type="primary")
         if submit_update:
             if not entry_date or entry_date > end_of_week:
                 st.warning("Cannot update entry to a future week date.")
-            elif entry_hours > 0 and entry_proj_key != "None":
-                proj_data = form_proj_options[entry_proj_key]
+            elif entry_hours <= 0:
+                st.warning("Please enter valid hours.")
+            elif entry_proj_key == "None":
+                st.error("⚠️ No project selected")
+            else:
+                proj_data = all_proj_options[entry_proj_key]
                 e_id = emp_options[entry_emp]
                 e_name = entry_emp.split(" (")[0] 
                 update_timesheet_entry(entry_data['id'], e_id, e_name, proj_data[0], proj_data[1], entry_date, entry_hours, entry_phase, proj_data[2])
+                st.session_state.pop('_edit_selected_proj_key', None)
                 st.success("Entry Updated!")
                 st.rerun()
-            elif entry_proj_key == "None": st.warning("Please select a project.")
-            else: st.warning("Please enter valid hours.")
+

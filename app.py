@@ -1,8 +1,7 @@
 import streamlit as st
-# Reloading...
 from database.queries import init_db
 from services.auth_service import check_login
-from components.navbar import render_navbar
+from components.sidebar import render_sidebar
 from pages.login_page import render_login_page
 from pages.timesheet_page import render_timesheet_page
 from pages.projects_page import render_projects_page
@@ -28,15 +27,35 @@ if "db_initialized" not in st.session_state:
 user = check_login()
 
 if not user:
+    # Hide sidebar when not logged in
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] { display: none; }
+            [data-testid="collapsedControl"] { display: none; }
+        </style>
+    """, unsafe_allow_html=True)
     render_login_page()
 else:
+    # Ensure sidebar toggle button is visible when logged in (overriding login page CSS)
+    st.markdown("""
+        <style>
+            [data-testid="collapsedControl"],
+            button[kind="headerNoPadding"] { 
+                display: flex !important; 
+                visibility: visible !important;
+                opacity: 1 !important;
+                z-index: 999999 !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
     # 5. Routing
     if "page" not in st.session_state:
         st.session_state["page"] = "Timesheet Entries"
-    
-    # Navigation
-    render_navbar(user)
-    
+
+    # Sidebar Navigation
+    render_sidebar(user)
+
     # Page Content
     page = st.session_state["page"]
     if page == "Timesheet Entries": render_timesheet_page(user)
