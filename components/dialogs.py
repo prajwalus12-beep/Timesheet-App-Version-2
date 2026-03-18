@@ -4,6 +4,12 @@ import time
 from database.queries import get_all_projects, add_timesheet_entry, update_timesheet_entry, verify_user_password, update_user_password
 from services.auth_service import is_password_strong, encrypt_data
 
+def format_proj_key(code, name, max_len=40):
+    name_str = str(name)
+    trunc_name = name_str[:max_len] + '...' if len(name_str) > max_len else name_str
+    return f"{code} - {trunc_name}"
+
+
 @st.dialog("Update Password")
 def update_password_dialog(username):
     st.write(f"Update password for **{username}**")
@@ -57,7 +63,7 @@ def entry_form_dialog(user, emp_options, current_emp_id):
         filtered_projs = all_projects_df[all_projects_df['status'] != 'Complete']
     
     # Build project options dict from ALL filtered projects
-    all_proj_options = {f"{r['project_code']} - {r['project_name']}": (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
+    all_proj_options = {format_proj_key(r['project_code'], r['project_name']): (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
     all_proj_keys = list(all_proj_options.keys())
     # Sort descending by job number (project code), which is the prefix
     all_proj_keys.sort(key=lambda x: x.split(" - ")[0], reverse=True)
@@ -111,10 +117,29 @@ def entry_form_dialog(user, emp_options, current_emp_id):
                 st.session_state._entry_selected_proj_key = "None"
             
         with st.container(border=True, height=250):
+            # Inject CSS to prevent checkbox label text from wrapping
+            st.markdown(
+                """
+                <style>
+                div[data-testid="stCheckbox"] label p {
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
             for k in display_keys:
                 is_selected = (k == selected_key)
                 is_disabled = (selected_key != 'None' and not is_selected)
-                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"entry_chk_{k}", on_change=handle_entry_chk, args=(k,))
+                
+                # Get the full name for the tooltip
+                proj_data = all_proj_options[k]
+                full_name = f"{proj_data[0]} - {proj_data[1]}"
+                tooltip = full_name if str(proj_data[1]) != k.split(' - ', 1)[1] else None
+                
+                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"entry_chk_{k}", help=tooltip, on_change=handle_entry_chk, args=(k,))
                 
         entry_proj_key = selected_key
         # -----------------------------------------------
@@ -146,7 +171,7 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
         current_proj_code = entry_data.get('project_code', '')
         current_proj_name = entry_data.get('project_name', '')
         if current_proj_code:
-            st.session_state._edit_selected_proj_key = f"{current_proj_code} - {current_proj_name}"
+            st.session_state._edit_selected_proj_key = format_proj_key(current_proj_code, current_proj_name)
         else:
             st.session_state._edit_selected_proj_key = 'None'
 
@@ -161,7 +186,7 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
     all_projects_df = get_all_projects()
     filtered_projs = all_projects_df[all_projects_df['status'] == 'Complete'] if filter_type == "Complete" else all_projects_df[all_projects_df['status'] != 'Complete']
     
-    all_proj_options = {f"{r['project_code']} - {r['project_name']}": (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
+    all_proj_options = {format_proj_key(r['project_code'], r['project_name']): (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
     
     selected_key = st.session_state.get('_edit_selected_proj_key', 'None')
     if selected_key != 'None' and selected_key not in all_proj_options:
@@ -169,7 +194,11 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
         current_proj_row = all_projects_df[all_projects_df['project_code'] == prev_proj_code]
         if not current_proj_row.empty:
             r = current_proj_row.iloc[0]
-            all_proj_options[selected_key] = (r['project_code'], r['project_name'], r.get('status', ''))
+            new_key = format_proj_key(r['project_code'], r['project_name'])
+            all_proj_options[new_key] = (r['project_code'], r['project_name'], r.get('status', ''))
+            if selected_key != new_key:
+                st.session_state._edit_selected_proj_key = new_key
+                selected_key = new_key
             
     all_proj_keys = list(all_proj_options.keys())
     all_proj_keys.sort(key=lambda x: x.split(" - ")[0], reverse=True)
@@ -223,10 +252,29 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
                 st.session_state._edit_selected_proj_key = "None"
                 
         with st.container(border=True, height=250):
+            # Inject CSS to prevent checkbox label text from wrapping
+            st.markdown(
+                """
+                <style>
+                div[data-testid="stCheckbox"] label p {
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
             for k in display_keys:
                 is_selected = (k == selected_key)
                 is_disabled = (selected_key != 'None' and not is_selected)
-                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"edit_chk_{k}", on_change=handle_edit_chk, args=(k,))
+                
+                # Get the full name for the tooltip
+                proj_data = all_proj_options[k]
+                full_name = f"{proj_data[0]} - {proj_data[1]}"
+                tooltip = full_name if str(proj_data[1]) != k.split(' - ', 1)[1] else None
+                
+                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"edit_chk_{k}", help=tooltip, on_change=handle_edit_chk, args=(k,))
                 
         entry_proj_key = selected_key
         # -----------------------------------------------

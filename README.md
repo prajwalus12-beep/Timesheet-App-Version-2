@@ -1,4 +1,4 @@
-# Timesheet Management System (Version 3)
+# Timesheet Management System
 
 ## Overview
 The Timesheet Management System is a comprehensive Streamlit-based application designed for efficient time tracking and project management. It provides a secure platform for employees to log their daily work hours against specific projects and for administrators to oversee operations, manage resources, and generate reports.
