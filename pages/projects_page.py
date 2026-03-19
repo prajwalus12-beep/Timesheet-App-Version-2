@@ -1,16 +1,15 @@
 import streamlit as st
 import datetime
 import pandas as pd
+import io
 from database.queries import get_all_projects
 
 def render_projects_page():
     col_title, col_export = st.columns([7, 1.5])
     with col_title: st.subheader("Projects", divider="blue")
     
+    export_placeholder = col_export.empty()
     projs = get_all_projects()
-    with col_export:
-        if not projs.empty:
-            st.download_button("📥 Export CSV", projs.to_csv(index=False), f"projects_{datetime.date.today()}.csv", "text/csv", use_container_width=True, type="primary")
     
     if projs.empty:
         st.info("No projects found.")
@@ -58,6 +57,22 @@ def render_projects_page():
     filtered['job_no_numeric'] = pd.to_numeric(filtered['project_code'], errors='coerce')
     filtered = filtered.sort_values(by=['job_no_numeric', 'project_code'], ascending=[False, False])
     
+    if not filtered.empty:
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            export_df = filtered.drop(columns=['job_no_numeric'], errors='ignore')
+            export_df = export_df.rename(columns={
+                'project_code': 'Job No',
+                'priority': 'Job Priority',
+                'project_name': 'Project',
+                'status': 'Status',
+                'lead_engineer': 'Lead engineer',
+                'trello_link': 'Trello'
+            })
+            export_df = export_df[['Job No', 'Job Priority', 'Project', 'Status', 'Lead engineer', 'Trello']]
+            export_df.to_excel(writer, index=False)
+        export_placeholder.download_button("📥 Export Excel", buffer.getvalue(), f"projects_{datetime.date.today()}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, type="primary")
+
     st.write(f"### 🏗️ Project List ({len(filtered)} projects)")
     if not filtered.empty:
         st.markdown('<div class="table-container">', unsafe_allow_html=True)

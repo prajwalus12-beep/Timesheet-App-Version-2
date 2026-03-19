@@ -1,6 +1,8 @@
 import streamlit as st
 import datetime
 import time
+import json
+import streamlit.components.v1 as components
 from database.queries import get_all_projects, add_timesheet_entry, update_timesheet_entry, verify_user_password, update_user_password
 from services.auth_service import is_password_strong, encrypt_data
 
@@ -143,6 +145,26 @@ def entry_form_dialog(user, emp_options, current_emp_id):
                     label_visibility="collapsed"
                 )
                 
+                # Inject JS to add title attribute for tooltips
+                tooltip_map = {k: f"{all_proj_options[k][0]} - {all_proj_options[k][1]}" for k in display_keys}
+                js_code = f"""
+                <script>
+                setTimeout(function() {{
+                    const parent = window.parent.document;
+                    if (!parent) return;
+                    const mapping = {json.dumps(tooltip_map)};
+                    const labels = parent.querySelectorAll('div[data-testid="stRadio"] label p');
+                    labels.forEach(el => {{
+                        const txt = el.innerText.trim();
+                        if (mapping[txt]) {{
+                            el.parentElement.parentElement.setAttribute('title', mapping[txt]);
+                        }}
+                    }});
+                }}, 300);
+                </script>
+                """
+                components.html(js_code, height=0, width=0)
+                
         entry_proj_key = selected_key
         # -----------------------------------------------
         
@@ -279,6 +301,26 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
                     on_change=handle_edit_radio,
                     label_visibility="collapsed"
                 )
+                
+                # Inject JS to add title attribute for tooltips
+                tooltip_map = {k: f"{all_proj_options[k][0]} - {all_proj_options[k][1]}" for k in display_keys}
+                js_code = f"""
+                <script>
+                setTimeout(function() {{
+                    const parent = window.parent.document;
+                    if (!parent) return;
+                    const mapping = {json.dumps(tooltip_map)};
+                    const labels = parent.querySelectorAll('div[data-testid="stRadio"] label p');
+                    labels.forEach(el => {{
+                        const txt = el.innerText.trim();
+                        if (mapping[txt]) {{
+                            el.parentElement.parentElement.setAttribute('title', mapping[txt]);
+                        }}
+                    }});
+                }}, 300);
+                </script>
+                """
+                components.html(js_code, height=0, width=0)
                 
         entry_proj_key = selected_key
         # -----------------------------------------------
