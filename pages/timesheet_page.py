@@ -166,26 +166,34 @@ def render_timesheet_page(user):
         subset = data.iloc[start_idx:start_idx + rows_per_page]
 
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
-        st.markdown('<div class="table-header"><div style="flex: 1.5;">Date</div><div style="flex: 2;">Employee</div><div style="flex: 3;">Project</div><div style="flex: 2;">Phase</div><div style="flex: 1.5;">Status</div><div style="flex: 1;">Hours</div><div style="flex: 1.5;">Action</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="table-header">'
+                    '<div style="flex: 1.5;">Date</div>'
+                    '<div style="flex: 1;">Emp Code</div>'
+                    '<div style="flex: 2;">Employee</div>'
+                    '<div style="flex: 1;">Project Code</div>'
+                    '<div style="flex: 3;">Project</div>'
+                    '<div style="flex: 1.5;">Status</div>'
+                    '<div style="flex: 1;">Hour</div>'
+                    '<div style="flex: 1.5;">Action</div>'
+                    '</div>', unsafe_allow_html=True)
 
         start_of_week = today - datetime.timedelta(days=today.weekday())
         end_of_week = start_of_week + datetime.timedelta(days=6)
 
         for _, row in subset.iterrows():
             st.markdown('<div class="table-row">', unsafe_allow_html=True)
-            c1, c2, c3, c_p, c_s, c4, c5 = st.columns([1.5, 2, 3, 2, 1.5, 1, 1.5])
+            c_date, c_empcode, c_empname, c_projcode, c_projname, c_status, c_hour, c_action = st.columns([1.5, 1, 2, 1, 3, 1.5, 1, 1.5])
             r_date = row['date']
             if isinstance(r_date, str): r_date = datetime.datetime.strptime(r_date, '%Y-%m-%d').date()
-            c1.markdown(f'<div class="table-cell date-cell"><b>{r_date.strftime("%d-%m-%Y")}</b></div>', unsafe_allow_html=True)
-            c2.markdown(f'<div class="table-cell">{row["emp_id"]}-{row["emp_name"]}</div>', unsafe_allow_html=True)
-            proj_disp = f"{row['project_code']}-{row['project_name']}" if row['project_code'] else row['project_name']
-            c3.markdown(f'<div class="table-cell" title="{proj_disp}">{proj_disp}</div>', unsafe_allow_html=True)
-            phase_map = {"1": "Analysis", "2": "Design", "3": "Development", "4": "Testing", "5": "Deployement"}
-            c_p.markdown(f'<div class="table-cell">{phase_map.get(str(row["Phase"]), row["Phase"])}</div>', unsafe_allow_html=True)
-            c_s.markdown(f'<div class="table-cell">{row["project_status"]}</div>', unsafe_allow_html=True)
-            c4.markdown(f'<div class="table-cell">{row["hours"]:.2f}</div>', unsafe_allow_html=True)
+            c_date.markdown(f'<div class="table-cell date-cell"><b>{r_date.strftime("%d-%m-%Y")}</b></div>', unsafe_allow_html=True)
+            c_empcode.markdown(f'<div class="table-cell">{row["emp_id"]}</div>', unsafe_allow_html=True)
+            c_empname.markdown(f'<div class="table-cell" title="{row["emp_name"]}">{row["emp_name"]}</div>', unsafe_allow_html=True)
+            c_projcode.markdown(f'<div class="table-cell">{row["project_code"] if row["project_code"] else "-"}</div>', unsafe_allow_html=True)
+            c_projname.markdown(f'<div class="table-cell" title="{row["project_name"]}">{row["project_name"]}</div>', unsafe_allow_html=True)
+            c_status.markdown(f'<div class="table-cell">{row["project_status"]}</div>', unsafe_allow_html=True)
+            c_hour.markdown(f'<div class="table-cell">{row["hours"]:.2f}</div>', unsafe_allow_html=True)
             
-            with c5:
+            with c_action:
                 if start_of_week <= r_date <= end_of_week:
                     ce, cd = st.columns(2)
                     if ce.button("✏️", key=f"edit_{row['id']}"): edit_form_dialog(row.to_dict(), emp_labels, current_emp_id, user["role"])

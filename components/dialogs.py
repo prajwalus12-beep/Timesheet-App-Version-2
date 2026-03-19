@@ -53,7 +53,7 @@ def entry_form_dialog(user, emp_options, current_emp_id):
         st.session_state._entry_proj_visible = 20
         st.session_state.pop('_entry_selected_proj_key', None)
 
-    filter_type = st.radio("Project Status", ["Inprogress", "Complete"], horizontal=True, key="entry_filter_type_modal", on_change=reset_visible)
+    filter_type = st.radio("Project Status", ["In-Progress", "Complete"], horizontal=True, key="entry_filter_type_modal", on_change=reset_visible)
     
     # Fetch and filter projects by status
     all_projects_df = get_all_projects()
@@ -93,35 +93,36 @@ def entry_form_dialog(user, emp_options, current_emp_id):
             q = search_query.lower()
             filtered_keys = [k for k in all_proj_keys if q in k.lower()]
         else:
-            filtered_keys = all_proj_keys
+            filtered_keys = []
             
         total_records = len(filtered_keys)
         
         selected_key = st.session_state.get('_entry_selected_proj_key', 'None')
         if selected_key != "None":
-            st.info(f"📋 **Selected Project:** {selected_key}")
+            full_name = f"{all_proj_options[selected_key][0]} - {all_proj_options[selected_key][1]}" if selected_key in all_proj_options else selected_key
+            st.info(f"📋 **Selected Project:** {full_name}")
         else:
             st.warning("⚠️ No project selected")
             
         display_keys = filtered_keys[:20]
         
-        if total_records == 0:
+        if not search_query:
+            st.caption("Please enter a search query above to find projects.")
+        elif total_records == 0:
             st.caption("No projects found.")
         else:
             st.caption(f"Showing 1–{len(display_keys)} of {total_records} projects")
             
-        def handle_entry_chk(k):
-            if st.session_state.get(f"entry_chk_{k}"):
-                st.session_state._entry_selected_proj_key = k
-            elif st.session_state.get('_entry_selected_proj_key') == k:
-                st.session_state._entry_selected_proj_key = "None"
+        def handle_entry_radio():
+            val = st.session_state.entry_radio_modal
+            if val is not None:
+                st.session_state._entry_selected_proj_key = val
             
         with st.container(border=True, height=250):
-            # Inject CSS to prevent checkbox label text from wrapping
             st.markdown(
                 """
                 <style>
-                div[data-testid="stCheckbox"] label p {
+                div[data-testid="stRadio"] label p {
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -130,16 +131,17 @@ def entry_form_dialog(user, emp_options, current_emp_id):
                 """,
                 unsafe_allow_html=True
             )
-            for k in display_keys:
-                is_selected = (k == selected_key)
-                is_disabled = (selected_key != 'None' and not is_selected)
+            if display_keys:
+                selected_idx = display_keys.index(selected_key) if selected_key in display_keys else None
                 
-                # Get the full name for the tooltip
-                proj_data = all_proj_options[k]
-                full_name = f"{proj_data[0]} - {proj_data[1]}"
-                tooltip = full_name if str(proj_data[1]) != k.split(' - ', 1)[1] else None
-                
-                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"entry_chk_{k}", help=tooltip, on_change=handle_entry_chk, args=(k,))
+                st.radio(
+                    "Select a project",
+                    options=display_keys,
+                    index=selected_idx,
+                    key="entry_radio_modal",
+                    on_change=handle_entry_radio,
+                    label_visibility="collapsed"
+                )
                 
         entry_proj_key = selected_key
         # -----------------------------------------------
@@ -229,34 +231,35 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
             q = search_query.lower()
             filtered_keys = [k for k in all_proj_keys if q in k.lower()]
         else:
-            filtered_keys = all_proj_keys
+            filtered_keys = []
             
         total_records = len(filtered_keys)
             
         if selected_key != "None":
-            st.info(f"📋 **Selected Project:** {selected_key}")
+            full_name = f"{all_proj_options[selected_key][0]} - {all_proj_options[selected_key][1]}" if selected_key in all_proj_options else selected_key
+            st.info(f"📋 **Selected Project:** {full_name}")
         else:
             st.warning("⚠️ No project selected")
             
         display_keys = filtered_keys[:20]
         
-        if total_records == 0:
+        if not search_query:
+            st.caption("Please enter a search query above to find projects.")
+        elif total_records == 0:
             st.caption("No projects found.")
         else:
             st.caption(f"Showing 1–{len(display_keys)} of {total_records} projects")
             
-        def handle_edit_chk(k):
-            if st.session_state.get(f"edit_chk_{k}"):
-                st.session_state._edit_selected_proj_key = k
-            elif st.session_state.get('_edit_selected_proj_key') == k:
-                st.session_state._edit_selected_proj_key = "None"
+        def handle_edit_radio():
+            val = st.session_state.edit_radio_modal
+            if val is not None:
+                st.session_state._edit_selected_proj_key = val
                 
         with st.container(border=True, height=250):
-            # Inject CSS to prevent checkbox label text from wrapping
             st.markdown(
                 """
                 <style>
-                div[data-testid="stCheckbox"] label p {
+                div[data-testid="stRadio"] label p {
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -265,16 +268,17 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
                 """,
                 unsafe_allow_html=True
             )
-            for k in display_keys:
-                is_selected = (k == selected_key)
-                is_disabled = (selected_key != 'None' and not is_selected)
+            if display_keys:
+                selected_idx = display_keys.index(selected_key) if selected_key in display_keys else None
                 
-                # Get the full name for the tooltip
-                proj_data = all_proj_options[k]
-                full_name = f"{proj_data[0]} - {proj_data[1]}"
-                tooltip = full_name if str(proj_data[1]) != k.split(' - ', 1)[1] else None
-                
-                st.checkbox(k, value=is_selected, disabled=is_disabled, key=f"edit_chk_{k}", help=tooltip, on_change=handle_edit_chk, args=(k,))
+                st.radio(
+                    "Select a project",
+                    options=display_keys,
+                    index=selected_idx,
+                    key="edit_radio_modal",
+                    on_change=handle_edit_radio,
+                    label_visibility="collapsed"
+                )
                 
         entry_proj_key = selected_key
         # -----------------------------------------------

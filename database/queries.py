@@ -20,14 +20,14 @@ def get_all_employees(exclude_admin=False):
 def get_all_projects():
     """Fetch all projects using Supabase SDK."""
     supabase = get_supabase_client()
-    if not supabase: return pd.DataFrame(columns=['project_code', 'project_name', 'status'])
+    if not supabase: return pd.DataFrame(columns=['project_code', 'project_name', 'status', 'priority', 'lead_engineer', 'trello_link'])
     
-    res = supabase.table('project').select('project_code, project_name, status').order('project_code', desc=True).execute()
+    res = supabase.table('project').select('project_code, project_name, status, priority, lead_engineer, trello_link').order('project_code', desc=True).execute()
     data = res.data or []
     
     # Decrypt project names
-    decrypted_res = [[r['project_code'], decrypt_data(r['project_name']), r['status']] for r in data]
-    return pd.DataFrame(decrypted_res, columns=['project_code', 'project_name', 'status'])
+    decrypted_res = [[r['project_code'], decrypt_data(r['project_name']), r['status'], r.get('priority'), r.get('lead_engineer'), r.get('trello_link')] for r in data]
+    return pd.DataFrame(decrypted_res, columns=['project_code', 'project_name', 'status', 'priority', 'lead_engineer', 'trello_link'])
 
 def get_user_by_username(username):
     """Fetch user details using Supabase SDK."""
@@ -292,8 +292,11 @@ def import_projects(df):
             code = str(row.get('Job No', ''))
             data.append({
                 "project_code": code,
-                "project_name": encrypt_data(row.get('Project', '')),
-                "status": row.get('Status', 'In progress')
+                "project_name": encrypt_data(str(row.get('Project', ''))),
+                "status": row.get('Status', 'In progress'),
+                "priority": row.get('Job Priority'),
+                "lead_engineer": row.get('Lead engineer'),
+                "trello_link": row.get('Trello')
             })
             if code in existing_codes:
                 updated_count += 1
