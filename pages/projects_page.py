@@ -15,12 +15,24 @@ def render_projects_page():
         st.info("No projects found.")
         return
 
+    if 'priority' in projs.columns:
+        def _clean_pri(p):
+            s = str(p)
+            if s == "nan" or s == "None": return ""
+            if s.endswith(".0"): return s[:-2]
+            return s
+        projs['priority'] = projs['priority'].apply(_clean_pri)
+
     with st.container(border=True):
         col_search, col_pri, col_emp, col_stat, col_clear = st.columns([2.5, 1.5, 2, 1.5, 1])
         with col_search:
-            search_query = st.text_input("🔍 Search Project Name or Job No", key="proj_search")
+            search_query = st.text_input("🔍 Search Project Name or Project Code", key="proj_search")
         with col_pri:
-            priorities = ["All"] + sorted([str(p) for p in projs['priority'].dropna().unique() if str(p).strip()])
+            def _sort_pri(x):
+                try: return float(x)
+                except ValueError: return float('inf')
+            raw_pri = [p for p in projs['priority'].dropna().unique() if p.strip()]
+            priorities = ["All"] + sorted(raw_pri, key=_sort_pri)
             pri_filter = st.selectbox("Priority", priorities, key="proj_pri")
         with col_emp:
             emps = ["All"] + sorted([str(e) for e in projs['lead_engineer'].dropna().unique() if str(e).strip()])
@@ -62,21 +74,21 @@ def render_projects_page():
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             export_df = filtered.drop(columns=['job_no_numeric'], errors='ignore')
             export_df = export_df.rename(columns={
-                'project_code': 'Job No',
+                'project_code': 'Project Code',
                 'priority': 'Job Priority',
                 'project_name': 'Project',
                 'status': 'Status',
                 'lead_engineer': 'Lead engineer',
                 'trello_link': 'Trello'
             })
-            export_df = export_df[['Job No', 'Job Priority', 'Project', 'Status', 'Lead engineer', 'Trello']]
+            export_df = export_df[['Project Code', 'Job Priority', 'Project', 'Status', 'Lead engineer', 'Trello']]
             export_df.to_excel(writer, index=False)
         export_placeholder.download_button("📥 Export Excel", buffer.getvalue(), f"projects_{datetime.date.today()}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, type="primary")
 
     st.write(f"### 🏗️ Project List ({len(filtered)} projects)")
     if not filtered.empty:
         st.markdown('<div class="table-container">', unsafe_allow_html=True)
-        st.markdown('<div class="table-header"><div style="flex: 1;">Job No</div><div style="flex: 1;">Priority</div><div style="flex: 3;">Project Name</div><div style="flex: 1.5;">Status</div><div style="flex: 2;">Lead Engineer</div><div style="flex: 2;">Trello Link</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="table-header"><div style="flex: 1;">Project Code</div><div style="flex: 1;">Priority</div><div style="flex: 3;">Project Name</div><div style="flex: 1.5;">Status</div><div style="flex: 2;">Lead Engineer</div><div style="flex: 2;">Trello Link</div></div>', unsafe_allow_html=True)
         
         # Pagination
         rows_per_page = 15
@@ -93,9 +105,6 @@ def render_projects_page():
             c1.markdown(f'<div class="table-cell"><b>{row["project_code"]}</b></div>', unsafe_allow_html=True)
             
             pri_str = str(row.get("priority", ""))
-            if pri_str == "nan" or pri_str == "None": pri_str = ""
-            if pri_str.endswith(".0"): pri_str = pri_str[:-2]
-            
             c_pri.markdown(f'<div class="table-cell">{pri_str}</div>', unsafe_allow_html=True)
             
             p_name = row["project_name"]

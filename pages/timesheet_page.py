@@ -88,6 +88,9 @@ def render_timesheet_page(user):
 
         with col_proj:
             all_projs = get_all_projects()
+            all_projs['job_no_numeric'] = pd.to_numeric(all_projs['project_code'], errors='coerce')
+            all_projs = all_projs.sort_values(by=['job_no_numeric', 'project_code'], ascending=[False, False])
+            
             proj_options = {f"{r['project_code']} - {r['project_name']}": r['project_code'] for _, r in all_projs.iterrows()}
             selected_proj_name = st.selectbox("Project", ["All"] + list(proj_options.keys()), key="filter_proj")
             selected_proj_code = proj_options[selected_proj_name] if selected_proj_name != "All" else None

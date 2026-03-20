@@ -67,8 +67,12 @@ def entry_form_dialog(user, emp_options, current_emp_id):
     # Build project options dict from ALL filtered projects
     all_proj_options = {format_proj_key(r['project_code'], r['project_name']): (r['project_code'], r['project_name'], r.get('status', '')) for _, r in filtered_projs.iterrows()}
     all_proj_keys = list(all_proj_options.keys())
-    # Sort descending by job number (project code), which is the prefix
-    all_proj_keys.sort(key=lambda x: x.split(" - ")[0], reverse=True)
+    # Sort descending numerically by job number (project code)
+    def _sort_key(k):
+        code = k.split(" - ")[0]
+        try: return float(code)
+        except ValueError: return 0.0
+    all_proj_keys.sort(key=_sort_key, reverse=True)
     
     # Use a container instead of a form so interactive elements (like "Show More") run instantly
     with st.container(border=True):
@@ -225,7 +229,11 @@ def edit_form_dialog(entry_data, emp_options, current_emp_id, user_role):
                 selected_key = new_key
             
     all_proj_keys = list(all_proj_options.keys())
-    all_proj_keys.sort(key=lambda x: x.split(" - ")[0], reverse=True)
+    def _sort_key(k):
+        code = k.split(" - ")[0]
+        try: return float(code)
+        except ValueError: return 0.0
+    all_proj_keys.sort(key=_sort_key, reverse=True)
     
     # Convert form to container so pagination buttons work instantly
     with st.container(border=True):

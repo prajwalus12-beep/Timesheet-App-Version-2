@@ -46,6 +46,9 @@ def render_reports_page(user):
         
         with c2:
             all_projs = get_all_projects()
+            all_projs['job_no_numeric'] = pd.to_numeric(all_projs['project_code'], errors='coerce')
+            all_projs = all_projs.sort_values(by=['job_no_numeric', 'project_code'], ascending=[False, False])
+            
             proj_options = {f"{r['project_code']} - {r['project_name']}": r['project_code'] for _, r in all_projs.iterrows()}
             sel_proj_name = st.selectbox("Project", ["All Projects"] + list(proj_options.keys()), key="report_proj")
             sel_proj_code = proj_options[sel_proj_name] if sel_proj_name != "All Projects" else None

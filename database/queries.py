@@ -289,7 +289,7 @@ def import_projects(df):
         updated_count = 0
         new_count = 0
         for _, row in df.iterrows():
-            code = str(row.get('Job No', ''))
+            code = str(row.get('Job No') or row.get('Project Code') or '')
             data.append({
                 "project_code": code,
                 "project_name": encrypt_data(str(row.get('Project', ''))),
