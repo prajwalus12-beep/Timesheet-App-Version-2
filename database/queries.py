@@ -90,7 +90,7 @@ def add_timesheet_entry(emp_id, emp_name, project_code, project_name, date, hour
     supabase = get_supabase_client()
     if not supabase: return False, "Configuration error"
     
-    phase_map = {"Analysis": "1", "Design": "2", "Development": "3", "Testing": "4", "Deployement": "5"}
+    phase_map = {"Analysis": "1", "Design": "2", "Development": "3", "Testing": "4", "Deployement": "5", "Support": "6"}
     phase_code = phase_map.get(phase, phase)
     
     data = {
@@ -161,7 +161,7 @@ def update_timesheet_entry(entry_id, emp_id, emp_name, project_code, project_nam
     supabase = get_supabase_client()
     if not supabase: return False, "Configuration error"
     
-    phase_map = {"Analysis": "1", "Design": "2", "Development": "3", "Testing": "4", "Deployement": "5"}
+    phase_map = {"Analysis": "1", "Design": "2", "Development": "3", "Testing": "4", "Deployement": "5", "Support": "6"}
     phase_code = phase_map.get(phase, phase)
     
     data = {

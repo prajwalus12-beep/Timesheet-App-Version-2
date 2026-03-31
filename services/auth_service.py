@@ -115,24 +115,71 @@ def login_user(username, password):
             return {"error": f"❌ Invalid password. Attempt {new_failed}/5."}
     return {"error": "🔍 User not found."}
 
+def get_session_metadata():
+    """Helper to extract browser metadata for session binding."""
+    try:
+        # st.context.headers is the modern way (Streamlit 1.35+)
+        # If it exists, use it and return immediately to avoid any deprecated imports
+        if hasattr(st, "context"):
+            try:
+                headers = st.context.headers
+                if headers:
+                    return {
+                        "ua": headers.get("User-Agent", "unknown"),
+                        "ip": headers.get("X-Forwarded-For", "127.0.0.1").split(',')[0].strip()
+                    }
+            except AttributeError:
+                pass
+
+        # Fallback for older versions - only import if modern way failed
+        from streamlit.web.server.websocket_headers import _get_websocket_headers
+        headers = _get_websocket_headers()
+        return {
+            "ua": headers.get("User-Agent", "unknown"),
+            "ip": headers.get("X-Forwarded-For", "127.0.0.1").split(',')[0].strip()
+        }
+    except:
+        return {"ua": "unknown", "ip": "127.0.0.1"}
+
 def create_session_token(user_data):
-    """Create an encrypted session token from user data."""
+    """Create an encrypted session token with expiration and device binding."""
     try:
         f = get_fernet()
         if f:
-            payload = json.dumps(user_data)
-            return f.encrypt(payload.encode()).decode()
+            meta = get_session_metadata()
+            payload = {
+                "user": user_data,
+                "exp": (datetime.utcnow() + timedelta(hours=24)).timestamp(),
+                "ua": meta["ua"],
+                "ip": meta["ip"]
+            }
+            return f.encrypt(json.dumps(payload).encode()).decode()
     except:
         pass
     return None
 
 def restore_session_from_token(token):
-    """Decrypt a session token and return user data."""
+    """Verify and decrypt a session token."""
     try:
         f = get_fernet()
         if f:
-            payload = f.decrypt(token.encode()).decode()
-            return json.loads(payload)
+            payload = json.loads(f.decrypt(token.encode()).decode())
+            
+            # 1. Check expiration
+            if datetime.utcnow().timestamp() > payload.get("exp", 0):
+                return None
+            
+            # 2. Check Device Binding (User-Agent must match)
+            meta = get_session_metadata()
+            if payload.get("ua") != meta["ua"]:
+                return None
+            
+            # 3. Check IP (only if not localhost)
+            # Note: IP can be prone to change, so we mostly rely on UA + Exp
+            # if meta["ip"] != "127.0.0.1" and payload.get("ip") != meta["ip"]:
+            #     return None
+                
+            return payload.get("user")
     except:
         pass
     return None
@@ -155,8 +202,10 @@ def check_login():
             if user_data:
                 st.session_state["logged_in"] = True
                 st.session_state["user"] = user_data
+                # Clear token from URL to prevent easy copying/sharing
+                st.query_params.clear()
             else:
-                # Invalid/expired token — clear it
+                # Invalid/expired/tampered token — clear it
                 st.query_params.clear()
 
     return st.session_state["user"]
