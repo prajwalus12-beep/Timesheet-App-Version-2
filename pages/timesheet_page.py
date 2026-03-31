@@ -177,6 +177,7 @@ def render_timesheet_page(user):
                     '<div style="flex: 3;">Project name</div>'
                     '<div style="flex: 1.5;">Status</div>'
                     '<div style="flex: 1.2;">Phases</div>'
+                    '<div style="flex: 0.8;">Hours</div>'
                     '<div style="flex: 1.5;">Action</div>'
                     '</div>', unsafe_allow_html=True)
 
@@ -186,7 +187,7 @@ def render_timesheet_page(user):
         phase_labels = {"1": "Analysis", "2": "Design", "3": "Development", "4": "Testing", "5": "Deployement", "6": "Support"}
         for _, row in subset.iterrows():
             st.markdown('<div class="table-row">', unsafe_allow_html=True)
-            c_date, c_empcode, c_empname, c_projcode, c_projname, c_status, c_phase, c_action = st.columns([1.5, 1, 2, 1, 3, 1.5, 1.2, 1.5])
+            c_date, c_empcode, c_empname, c_projcode, c_projname, c_status, c_phase, c_hour, c_action = st.columns([1.5, 1, 2, 1, 3, 1.5, 1.2, 0.8, 1.5])
             r_date = row['date']
             if isinstance(r_date, str): r_date = datetime.datetime.strptime(r_date, '%Y-%m-%d').date()
             c_date.markdown(f'<div class="table-cell date-cell"><b>{r_date.strftime("%d-%m-%Y")}</b></div>', unsafe_allow_html=True)
@@ -199,6 +200,7 @@ def render_timesheet_page(user):
             p_val = str(row.get("Phase", "1"))
             p_text = phase_labels.get(p_val, p_val)
             c_phase.markdown(f'<div class="table-cell">{p_text}</div>', unsafe_allow_html=True)
+            c_hour.markdown(f'<div class="table-cell">{row["hours"]:.2f}</div>', unsafe_allow_html=True)
             
             with c_action:
                 if start_of_week <= r_date <= end_of_week:
