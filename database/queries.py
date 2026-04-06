@@ -272,13 +272,15 @@ def check_assignment(emp_id, project_code):
     res = supabase.table('project_employee').select('1').match({'employee_id': emp_id, 'project_code': project_code}).execute()
     return len(res.data) > 0
 
+def _sanitize_dict(d):
+    """Replace any NaN/NaT values with None so they serialize as JSON null."""
+    return {k: (None if pd.isna(v) else v) if not isinstance(v, str) else v
+            for k, v in d.items()}
+
 def import_projects(df):
     """Import projects using Supabase SDK. Updates existing projects by Job No."""
     supabase = get_supabase_client()
     if not supabase: return False, "Configuration error"
-    
-    # Replace NaN with None for JSON compliance
-    df = df.where(pd.notnull(df), None)
     
     try:
         # Fetch existing project codes to determine new vs updated
@@ -290,14 +292,15 @@ def import_projects(df):
         new_count = 0
         for _, row in df.iterrows():
             code = str(row.get('Job No') or row.get('Project Code') or '')
-            data.append({
+            record = {
                 "project_code": code,
                 "project_name": encrypt_data(str(row.get('Project', ''))),
                 "status": row.get('Status', 'In progress'),
                 "priority": row.get('Job Priority'),
                 "lead_engineer": row.get('Lead engineer'),
                 "trello_link": row.get('Trello')
-            })
+            }
+            data.append(_sanitize_dict(record))
             if code in existing_codes:
                 updated_count += 1
             else:
@@ -314,9 +317,6 @@ def import_employees(df):
     supabase = get_supabase_client()
     if not supabase: return False, "Configuration error"
     
-    # Replace NaN with None for JSON compliance
-    df = df.where(pd.notnull(df), None)
-    
     try:
         from services.auth_service import FIXED_PASSWORD
         emp_data = []
@@ -328,19 +328,19 @@ def import_employees(df):
             slack_id = row.get('Slack ID', '')
             if not emp_id or not emp_name: continue
             
-            emp_data.append({
+            emp_data.append(_sanitize_dict({
                 "employee_id": emp_id,
                 "employee_name": emp_name,
                 "slack_id": slack_id
-            })
+            }))
             
             username = " ".join(emp_name.strip().lower().split())
             enc_pwd = encrypt_data(FIXED_PASSWORD)
-            user_data.append({
+            user_data.append(_sanitize_dict({
                 "employee_id": emp_id,
                 "username": username,
                 "password": enc_pwd
-            })
+            }))
             
         if emp_data:
             supabase.table('employee').upsert(emp_data).execute()
@@ -356,19 +356,16 @@ def import_assignments(df):
     supabase = get_supabase_client()
     if not supabase: return False, "Configuration error"
     
-    # Replace NaN with None for JSON compliance
-    df = df.where(pd.notnull(df), None)
-    
     try:
         data = []
         for _, row in df.iterrows():
             emp_code = str(row.get('Projects_Resources::a_EmployeeID', ''))
             proj_code = str(row.get('Projects_Resources::a_ProjectID', ''))
             if emp_code and proj_code:
-                data.append({
+                data.append(_sanitize_dict({
                     "employee_id": emp_code,
                     "project_code": proj_code
-                })
+                }))
         
         if data:
             supabase.table('project_employee').upsert(data).execute()
