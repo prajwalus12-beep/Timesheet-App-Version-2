@@ -129,8 +129,8 @@ def render_timesheet_page(user):
             export_df['Phase'] = export_df['Phase'].astype(str).map(phase_map).fillna(export_df['Phase'])
             
             # Convert columns to numeric to avoid Excel "Number Stored as Text" warnings
-            export_df['Emp_Code'] = pd.to_numeric(export_df['Emp_Code'], errors='ignore')
-            export_df['Project_Code'] = pd.to_numeric(export_df['Project_Code'], errors='ignore')
+            export_df['Emp_Code'] = pd.to_numeric(export_df['Emp_Code'], errors='coerce')
+            export_df['Project_Code'] = pd.to_numeric(export_df['Project_Code'], errors='coerce')
             
             # Sort by Employee Code then Date to match screenshot
             export_df = export_df.sort_values(by=['Emp_Code', 'Date'])
