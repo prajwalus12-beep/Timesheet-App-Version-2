@@ -153,7 +153,7 @@ def render_timesheet_page(user):
             st.download_button(
                 label="📥 Export Excel", 
                 data=buffer.getvalue(), 
-                file_name="timesheet_export.xlsx", 
+                file_name=f"timesheet_export_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx", 
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                 use_container_width=True,
                 type="primary"

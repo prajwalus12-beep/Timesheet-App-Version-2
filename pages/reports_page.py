@@ -183,7 +183,7 @@ def render_reports_page(user):
                 st.download_button(
                     "📊 Export Summary (Excel)", 
                     sum_buffer.getvalue(), 
-                    "report_summary.xlsx", 
+                    f"report_summary_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx", 
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                     use_container_width=True,
                     key="report_excel_summary_download_btn"
@@ -242,7 +242,7 @@ def render_reports_page(user):
                 st.download_button(
                     "📈 Export By Phase (Excel)", 
                     buffer.getvalue(), 
-                    "report_phase_breakdown.xlsx", 
+                    f"report_phase_breakdown_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx", 
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                     key="report_excel_download_btn"
@@ -278,7 +278,7 @@ def render_reports_page(user):
                         st.download_button(
                             "📥 Export Incomplete Logs (JSON)", 
                             json.dumps(incomplete_logs, indent=2), 
-                            "incomplete_timesheets.json", 
+                            f"incomplete_timesheets_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json", 
                             "application/json",
                             use_container_width=True,
                             key="report_json_download_btn"

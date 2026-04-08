@@ -83,7 +83,7 @@ def render_projects_page():
             })
             export_df = export_df[['Project Code', 'Job Priority', 'Project', 'Status', 'Lead engineer', 'Trello']]
             export_df.to_excel(writer, index=False)
-        export_placeholder.download_button("📥 Export Excel", buffer.getvalue(), f"projects_{datetime.date.today()}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, type="primary")
+        export_placeholder.download_button("📥 Export Excel", buffer.getvalue(), f"projects_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, type="primary")
 
     st.write(f"### 🏗️ Project List ({len(filtered)} projects)")
     if not filtered.empty:
